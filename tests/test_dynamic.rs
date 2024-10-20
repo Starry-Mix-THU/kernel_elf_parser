@@ -16,10 +16,10 @@ fn test_elf_parser() {
     let elf =
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
     let elf_base_addr = 0x1000;
-    let base_addr = kernel_elf_parser::elf_base_addr(&elf, elf_base_addr).unwrap();
+    let base_addr = elf_parser_rs::elf_base_addr(&elf, elf_base_addr).unwrap();
     assert_eq!(base_addr, elf_base_addr);
 
-    let segments = kernel_elf_parser::elf_segments(&elf, base_addr);
+    let segments = elf_parser_rs::elf_segments(&elf, base_addr);
     assert_eq!(segments.len(), 4);
     for segment in segments.iter() {
         println!("{:?} {:?}", segment.vaddr, segment.flags);

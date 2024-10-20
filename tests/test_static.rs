@@ -17,10 +17,10 @@ fn test_elf_parser() {
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
 
     let elf_base_addr = 0x1000;
-    let base_addr = kernel_elf_parser::elf_base_addr(&elf, elf_base_addr).unwrap();
+    let base_addr = elf_parser_rs::elf_base_addr(&elf, elf_base_addr).unwrap();
     assert_eq!(base_addr, 0);
 
-    let segments = kernel_elf_parser::elf_segments(&elf, base_addr);
+    let segments = elf_parser_rs::elf_segments(&elf, base_addr);
     assert_eq!(segments.len(), 4);
     let mut last_start = VirtAddr::from_usize(0);
     for segment in segments.iter() {
@@ -34,7 +34,7 @@ fn test_elf_parser() {
 }
 
 fn test_ustack(elf: &xmas_elf::ElfFile, base_addr: usize) {
-    let auxv = kernel_elf_parser::auxv_vector(&elf, base_addr);
+    let auxv = elf_parser_rs::auxv_vector(&elf, base_addr);
     const AT_PHENT: u8 = 4;
     let phent = auxv.get(&AT_PHENT).unwrap();
     assert_eq!(*phent, 56);
@@ -48,7 +48,7 @@ fn test_ustack(elf: &xmas_elf::ElfFile, base_addr: usize) {
     let ustack_bottom = ustack_end - ustack_size;
 
     let stack_data =
-        kernel_elf_parser::app_stack_region(&args, &envs, &auxv, ustack_bottom.into(), ustack_size);
+        elf_parser_rs::app_stack_region(&args, &envs, &auxv, ustack_bottom.into(), ustack_size);
     // The first 8 bytes of the stack is the number of arguments.
     assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);
 }
