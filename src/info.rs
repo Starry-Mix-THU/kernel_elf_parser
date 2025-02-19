@@ -141,13 +141,9 @@ impl<'a> ELFParser<'a> {
                 if ph.flags().is_execute() {
                     flags |= MappingFlags::EXECUTE;
                 }
-                // Virtual address from elf may not be aligned.
-                assert_eq!(start_va % PAGE_SIZE_4K, start_offset % PAGE_SIZE_4K);
-                let front_pad = start_va % PAGE_SIZE_4K;
-
                 segments.push(ELFPH {
-                    offset: start_offset - front_pad,
-                    vaddr: VirtAddr::from(start_va - front_pad),
+                    offset: start_offset,
+                    vaddr: VirtAddr::from(start_va),
                     memsz: ph.mem_size(),
                     filesz: ph.file_size(),
                     flags,
