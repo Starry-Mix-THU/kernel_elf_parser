@@ -29,8 +29,10 @@
 
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use memory_addr::VirtAddr;
+
+use crate::auxv::{AuxvEntry, AuxvType};
 
 struct UserStack {
     sp: usize,
@@ -54,7 +56,7 @@ impl UserStack {
         }
     }
     pub fn push_str(&mut self, str: &str, stack_data: &mut Vec<u8>) -> usize {
-        self.push(&['\0' as u8], stack_data);
+        self.push(b"\0", stack_data);
 
         self.push(str.as_bytes(), stack_data);
         self.sp
@@ -64,7 +66,7 @@ impl UserStack {
     }
 }
 
-fn init_stack(args: &[String], envs: &[String], auxv: &BTreeMap<u8, usize>, sp: usize) -> Vec<u8> {
+fn init_stack(args: &[String], envs: &[String], auxv: &mut [AuxvEntry], sp: usize) -> Vec<u8> {
     let mut data = Vec::new();
     let mut stack = UserStack::new(sp);
     // define a random string with 16 bytes
@@ -85,14 +87,23 @@ fn init_stack(args: &[String], envs: &[String], auxv: &BTreeMap<u8, usize>, sp: 
     stack.push("\0".repeat(stack.get_sp() % 16).as_bytes(), &mut data);
     assert!(stack.get_sp() % 16 == 0);
     // Push auxiliary vectors
-    for (key, value) in auxv.iter() {
-        if (*key) == 25 {
-            // AT RANDOM
-            stack.push_usize_slice(&[*key as usize, random_str_pos], &mut data);
-        } else {
-            stack.push_usize_slice(&[*key as usize, *value], &mut data);
-        };
+    for auxv_entry in auxv.iter_mut() {
+        if auxv_entry.get_type() == AuxvType::RANDOM {
+            *auxv_entry.value_mut_ref() = random_str_pos;
+        }
+        if auxv_entry.get_type() == AuxvType::EXECFN {
+            *auxv_entry.value_mut_ref() = argv_slice[0];
+        }
     }
+    stack.push_usize_slice(
+        unsafe {
+            core::slice::from_raw_parts(
+                auxv.as_ptr() as *const usize,
+                core::mem::size_of_val(auxv) / core::mem::size_of::<usize>(),
+            )
+        },
+        &mut data,
+    );
 
     // Push the argv and envp pointers
     stack.push(padding_null.as_bytes(), &mut data);
@@ -110,9 +121,7 @@ fn init_stack(args: &[String], envs: &[String], auxv: &BTreeMap<u8, usize>, sp: 
 ///
 /// * `args` - Arguments of the application
 /// * `envs` - Environment variables of the application
-/// * `auxv` - Auxiliary vectors of the application, whose type is [`BTreeMap<u8, usize>`].
-///    * Key: The entry type
-///    * Value: The value of the auxiliary vector.
+/// * `auxv` - Auxiliary vectors of the application
 /// * `stack_base` - Lowest address of the stack
 /// * `stack_size` - Size of the stack.
 ///
@@ -126,7 +135,7 @@ fn init_stack(args: &[String], envs: &[String], auxv: &BTreeMap<u8, usize>, sp: 
 pub fn app_stack_region(
     args: &[String],
     envs: &[String],
-    auxv: &BTreeMap<u8, usize>,
+    auxv: &mut [AuxvEntry],
     stack_base: VirtAddr,
     stack_size: usize,
 ) -> Vec<u8> {

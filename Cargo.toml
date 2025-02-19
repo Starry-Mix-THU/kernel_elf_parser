@@ -1,7 +1,7 @@
 [package]
 name = "elf_parser_rs"
-version = "0.1.0"
-edition = "2021"
+version = "0.2.0"
+edition = "2024"
 authors = ["Youjie Zheng <zyj578335934@gmail.com>"]
 license = "GPL-3.0-or-later OR Apache-2.0 OR MulanPSL-2.0"
 documentation = "https://docs.rs/elf_parser_rs"
@@ -13,8 +13,8 @@ categories = ["no-std"]
 
 [dependencies]
 axerrno = "0.1"
-page_table_entry = "0.4"
-xmas-elf = "0.9.0"
+page_table_entry = "0.5"
+xmas-elf = "0.9"
 memory_addr = "0.3"
 log = "0.4.21"
 cfg-if = "1.0"

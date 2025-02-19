@@ -15,30 +15,37 @@ used for loading a given application into the physical memory of the kernel.
 
 ```rust
 use std::collections::BTreeMap;
+use elf_parser_rs::{AuxvEntry, AuxvType};
 let args: Vec<String> = vec!["arg1".to_string(), "arg2".to_string(), "arg3".to_string()];
 let envs: Vec<String> = vec!["LOG=file".to_string()];
-let auxv = BTreeMap::new();
+let mut auxv: [AuxvEntry; 17] = [
+    AuxvEntry::new(AuxvType::PHDR, 0x1000),
+    AuxvEntry::new(AuxvType::PHENT, 1024),
+    AuxvEntry::new(AuxvType::PHNUM, 10),
+    AuxvEntry::new(AuxvType::PAGESZ, 0x1000),
+    AuxvEntry::new(AuxvType::BASE, 0),
+    AuxvEntry::new(AuxvType::FLAGS, 0),
+    AuxvEntry::new(AuxvType::ENTRY, 0x1000),
+    AuxvEntry::new(AuxvType::HWCAP, 0),
+    AuxvEntry::new(AuxvType::CLKTCK, 100),
+    AuxvEntry::new(AuxvType::PLATFORM, 0),
+    AuxvEntry::new(AuxvType::UID, 0),
+    AuxvEntry::new(AuxvType::EUID, 0),
+    AuxvEntry::new(AuxvType::GID, 0),
+    AuxvEntry::new(AuxvType::EGID, 0),
+    AuxvEntry::new(AuxvType::RANDOM, 0),
+    AuxvEntry::new(AuxvType::EXECFN, 0),
+    AuxvEntry::new(AuxvType::NULL, 0),
+];
 // The highest address of the user stack.
 let ustack_end = 0x4000_0000;
 let ustack_size = 0x1_0000;
 let ustack_start = ustack_end - ustack_size;
 
 let stack_data =
-    elf_parser_rs::app_stack_region(&args, &envs, &auxv, ustack_start.into(), ustack_size);
+    elf_parser_rs::app_stack_region(&args, &envs, &mut auxv, ustack_start.into(), ustack_size);
+
+// args length
 assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);
 
-// uspace.map_alloc(ustack_start, ustack_size, MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER)?;
-
-let ustack_pointer = ustack_end - stack_data.len();
-
-// Copy the stack data to the user stack.
-// After initialization, the stack layout is as follows: <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-// unsafe {
-//     core::ptr::copy_nonoverlapping(
-//         stack_data.as_ptr(),
-//         ustack_pointer as *mut u8,
-//         stack_data.len(),
-//     );
-// }
-println!("ustack_pointer: {}", ustack_pointer);
 ```

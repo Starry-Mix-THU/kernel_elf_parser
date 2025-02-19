@@ -1,8 +1,7 @@
 #[test]
 fn test_elf_parser() {
     use memory_addr::VirtAddr;
-    // A simple elf file compiled by the gcc 11.4.
-    let elf_bytes = include_bytes!("elf_dynamic");
+    let elf_bytes = include_bytes!("ld-linux-x86-64.so.2");
     // Ensure the alignment of the byte array
     let mut aligned_elf_bytes = unsafe {
         let ptr = elf_bytes.as_ptr() as *mut u8;
@@ -15,11 +14,12 @@ fn test_elf_parser() {
     }
     let elf =
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
-    let elf_base_addr = 0x1000;
-    let base_addr = elf_parser_rs::elf_base_addr(&elf, elf_base_addr).unwrap();
-    assert_eq!(base_addr, elf_base_addr);
+    let interp_base = 0x1000;
+    let elf_parser = elf_parser_rs::ELFParser::new(&elf, interp_base).unwrap();
+    let base_addr = elf_parser.base();
+    assert_eq!(base_addr, interp_base);
 
-    let segments = elf_parser_rs::elf_segments(&elf, base_addr);
+    let segments = elf_parser.ph_load();
     assert_eq!(segments.len(), 4);
     for segment in segments.iter() {
         println!("{:?} {:?}", segment.vaddr, segment.flags);

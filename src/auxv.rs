@@ -1,48 +1,82 @@
 //! Some constant in the elf file
 extern crate alloc;
-use alloc::collections::BTreeMap;
-use memory_addr::PAGE_SIZE_4K;
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(non_camel_case_types, unused)]
+#[repr(usize)]
+pub enum AuxvType {
+    NULL = 0,
+    IGNORE = 1,
+    EXECFD = 2,
+    PHDR = 3,
+    PHENT = 4,
+    PHNUM = 5,
+    PAGESZ = 6,
+    BASE = 7,
+    FLAGS = 8,
+    ENTRY = 9,
+    NOTELF = 10,
+    UID = 11,
+    EUID = 12,
+    GID = 13,
+    EGID = 14,
+    PLATFORM = 15,
+    HWCAP = 16,
+    CLKTCK = 17,
+    FPUCW = 18,
+    DCACHEBSIZE = 19,
+    ICACHEBSIZE = 20,
+    UCACHEBSIZE = 21,
+    IGNOREPPC = 22,
+    SECURE = 23,
+    BASE_PLATFORM = 24,
+    RANDOM = 25,
+    HWCAP2 = 26,
+    EXECFN = 31,
+    SYSINFO = 32,
+    SYSINFO_EHDR = 33,
+    L1I_CACHESHAPE = 34,
+    L1D_CACHESHAPE = 35,
+    L2_CACHESHAPE = 36,
+    L3_CACHESHAPE = 37,
+    L1I_CACHESIZE = 40,
+    L1I_CACHEGEOMETRY = 41,
+    L1D_CACHESIZE = 42,
+    L1D_CACHEGEOMETRY = 43,
+    L2_CACHESIZE = 44,
+    L2_CACHEGEOMETRY = 45,
+    L3_CACHESIZE = 46,
+    L3_CACHEGEOMETRY = 47,
+    MINSIGSTKSZ = 51,
+}
 
-const AT_PHDR: u8 = 3;
-const AT_PHENT: u8 = 4;
-const AT_PHNUM: u8 = 5;
-const AT_PAGESZ: u8 = 6;
-#[allow(unused)]
-const AT_BASE: u8 = 7;
-#[allow(unused)]
-const AT_ENTRY: u8 = 9;
-const AT_RANDOM: u8 = 25;
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct AuxvEntry {
+    auxv_type: AuxvType,
+    auxv_val: usize,
+}
 
-/// Read auxiliary vectors from the ELF file.
-///
-/// # Arguments
-///
-/// * `elf` - The elf file
-/// * `base_addr` - The base address of the elf file if the file will be loaded to the memory
-///
-/// # Return
-/// It will return a `BTreeMap<u8, usize>` which contains the auxiliary vectors. The key is the entry type, and the value is the value of the auxiliary vector.
-///
-/// Details about auxiliary vectors are described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-pub fn auxv_vector(elf: &xmas_elf::ElfFile, base_addr: usize) -> BTreeMap<u8, usize> {
-    let mut map = BTreeMap::new();
-
-    if let Some(ph) = elf
-        .program_iter()
-        .find(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Load))
-    {
-        // The first LOAD segment is the lowest one. And its virtual address is the base address of the ELF file.
-        map.insert(
-            AT_PHDR,
-            base_addr + (ph.virtual_addr() + elf.header.pt2.ph_offset()) as usize,
-        );
-    } else {
-        map.insert(AT_PHDR, 0);
+impl AuxvEntry {
+    /// Create a new auxv entry
+    pub fn new(auxv_type: AuxvType, auxv_val: usize) -> Self {
+        Self {
+            auxv_type,
+            auxv_val,
+        }
     }
 
-    map.insert(AT_PHENT, elf.header.pt2.ph_entry_size() as usize);
-    map.insert(AT_PHNUM, elf.header.pt2.ph_count() as usize);
-    map.insert(AT_RANDOM, 0);
-    map.insert(AT_PAGESZ, PAGE_SIZE_4K);
-    map
+    /// Get [self::AuxvType] of the auxv entry
+    pub fn get_type(&self) -> AuxvType {
+        self.auxv_type
+    }
+
+    /// Get the value of the auxv entry
+    pub fn value(&self) -> usize {
+        self.auxv_val
+    }
+
+    /// Get a mutable reference to the value of the auxv entry
+    pub fn value_mut_ref(&mut self) -> &mut usize {
+        &mut self.auxv_val
+    }
 }

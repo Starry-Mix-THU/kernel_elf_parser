@@ -1,3 +1,6 @@
+use elf_parser_rs::ELFParser;
+use memory_addr::PAGE_SIZE_4K;
+
 #[test]
 fn test_elf_parser() {
     use memory_addr::VirtAddr;
@@ -16,11 +19,12 @@ fn test_elf_parser() {
     let elf =
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
 
-    let elf_base_addr = 0x1000;
-    let base_addr = elf_parser_rs::elf_base_addr(&elf, elf_base_addr).unwrap();
+    let interp_base = 0x1000;
+    let elf_parser = elf_parser_rs::ELFParser::new(&elf, interp_base).unwrap();
+    let base_addr = elf_parser.base();
     assert_eq!(base_addr, 0);
 
-    let segments = elf_parser_rs::elf_segments(&elf, base_addr);
+    let segments = elf_parser.ph_load();
     assert_eq!(segments.len(), 4);
     let mut last_start = VirtAddr::from_usize(0);
     for segment in segments.iter() {
@@ -30,14 +34,18 @@ fn test_elf_parser() {
     }
     assert_eq!(segments[0].vaddr, VirtAddr::from_usize(0x400000));
 
-    test_ustack(&elf, base_addr);
+    test_ustack(&elf_parser);
 }
 
-fn test_ustack(elf: &xmas_elf::ElfFile, base_addr: usize) {
-    let auxv = elf_parser_rs::auxv_vector(&elf, base_addr);
-    const AT_PHENT: u8 = 4;
-    let phent = auxv.get(&AT_PHENT).unwrap();
-    assert_eq!(*phent, 56);
+fn test_ustack(elf_parser: &ELFParser) {
+    let mut auxv = elf_parser.auxv_vector(PAGE_SIZE_4K);
+    // let phent = auxv.get(&AT_PHENT).unwrap();
+    // assert_eq!(*phent, 56);
+    auxv.iter().for_each(|entry| {
+        if entry.get_type() == elf_parser_rs::AuxvType::PHENT {
+            assert_eq!(entry.value(), 56);
+        }
+    });
 
     let args: Vec<String> = vec!["arg1".to_string(), "arg2".to_string(), "arg3".to_string()];
     let envs: Vec<String> = vec!["LOG=file".to_string()];
@@ -48,7 +56,7 @@ fn test_ustack(elf: &xmas_elf::ElfFile, base_addr: usize) {
     let ustack_bottom = ustack_end - ustack_size;
 
     let stack_data =
-        elf_parser_rs::app_stack_region(&args, &envs, &auxv, ustack_bottom.into(), ustack_size);
+        elf_parser_rs::app_stack_region(&args, &envs, &mut auxv, ustack_bottom.into(), ustack_size);
     // The first 8 bytes of the stack is the number of arguments.
     assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);
 }
