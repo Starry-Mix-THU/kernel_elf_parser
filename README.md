@@ -1,8 +1,8 @@
-# kernel_elf_parser
+# kernel-elf-parser
 
-[![Crates.io](https://img.shields.io/crates/v/kernel_elf_parser)](https://crates.io/crates/kernel_elf_parser)
-[![Docs.rs](https://docs.rs/kernel_elf_parser/badge.svg)](https://docs.rs/kernel_elf_parser)
-[![CI](https://github.com/Azure-stars/kernel_elf_parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Azure-stars/kernel_elf_parser/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/kernel-elf-parser)](https://crates.io/crates/kernel-elf-parser)
+[![Docs.rs](https://docs.rs/kernel-elf-parser/badge.svg)](https://docs.rs/kernel-elf-parser)
+[![CI](https://github.com/Azure-stars/kernel-elf-parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Azure-stars/kernel-elf-parser/actions/workflows/ci.yml)
 
 A lightweight ELF parser written in Rust, providing assistance for loading applications into the kernel.
 
@@ -42,8 +42,7 @@ let ustack_end = 0x4000_0000;
 let ustack_size = 0x1_0000;
 let ustack_start = ustack_end - ustack_size;
 
-let stack_data =
-    kernel_elf_parser::app_stack_region(&args, &envs, &mut auxv, ustack_start.into(), ustack_size);
+let stack_data = kernel_elf_parser::app_stack_region(&args, &envs, &mut auxv, ustack_start.into(), ustack_size);
 
 // args length
 assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);
