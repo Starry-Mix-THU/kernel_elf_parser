@@ -25,6 +25,7 @@ pub struct ELFPH {
     pub flags: MappingFlags,
 }
 
+/// A wrapper for the ELF file data with some useful methods.
 pub struct ELFParser<'a> {
     elf: &'a xmas_elf::ElfFile<'a>,
     /// Base address of the ELF file loaded into the memory.

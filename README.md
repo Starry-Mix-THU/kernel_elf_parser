@@ -1,8 +1,8 @@
-# elf_parser_rs
+# kernel_elf_parser
 
-[![Crates.io](https://img.shields.io/crates/v/elf_parser_rs)](https://crates.io/crates/elf_parser_rs)
-[![Docs.rs](https://docs.rs/elf_parser_rs/badge.svg)](https://docs.rs/elf_parser_rs)
-[![CI](https://github.com/Azure-stars/elf_parser_rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Azure-stars/elf_parser_rs/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/kernel_elf_parser)](https://crates.io/crates/kernel_elf_parser)
+[![Docs.rs](https://docs.rs/kernel_elf_parser/badge.svg)](https://docs.rs/kernel_elf_parser)
+[![CI](https://github.com/Azure-stars/kernel_elf_parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Azure-stars/kernel_elf_parser/actions/workflows/ci.yml)
 
 A lightweight ELF parser written in Rust, providing assistance for loading applications into the kernel.
 
@@ -15,7 +15,7 @@ used for loading a given application into the physical memory of the kernel.
 
 ```rust
 use std::collections::BTreeMap;
-use elf_parser_rs::{AuxvEntry, AuxvType};
+use kernel_elf_parser::{AuxvEntry, AuxvType};
 let args: Vec<String> = vec!["arg1".to_string(), "arg2".to_string(), "arg3".to_string()];
 let envs: Vec<String> = vec!["LOG=file".to_string()];
 let mut auxv: [AuxvEntry; 17] = [
@@ -43,7 +43,7 @@ let ustack_size = 0x1_0000;
 let ustack_start = ustack_end - ustack_size;
 
 let stack_data =
-    elf_parser_rs::app_stack_region(&args, &envs, &mut auxv, ustack_start.into(), ustack_size);
+    kernel_elf_parser::app_stack_region(&args, &envs, &mut auxv, ustack_start.into(), ustack_size);
 
 // args length
 assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);

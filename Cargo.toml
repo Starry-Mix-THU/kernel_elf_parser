@@ -1,11 +1,11 @@
 [package]
-name = "elf_parser_rs"
+name = "kernel_elf_parser"
 version = "0.2.0"
 edition = "2024"
 authors = ["Youjie Zheng <zyj578335934@gmail.com>"]
 license = "GPL-3.0-or-later OR Apache-2.0 OR MulanPSL-2.0"
-documentation = "https://docs.rs/elf_parser_rs"
-repository = "https://github.com/Starry-OS/elf_parser_rs"
+documentation = "https://docs.rs/kernel_elf_parser"
+repository = "https://github.com/Starry-OS/kernel_elf_parser"
 description = "An lightweight ELF parser that parses ELF files and converts them into information needed for kernel building"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 keywords = ["Starry", "ELF", "kernel"]

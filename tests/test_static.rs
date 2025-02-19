@@ -1,4 +1,4 @@
-use elf_parser_rs::ELFParser;
+use kernel_elf_parser::ELFParser;
 use memory_addr::PAGE_SIZE_4K;
 
 #[test]
@@ -20,7 +20,7 @@ fn test_elf_parser() {
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
 
     let interp_base = 0x1000;
-    let elf_parser = elf_parser_rs::ELFParser::new(&elf, interp_base).unwrap();
+    let elf_parser = kernel_elf_parser::ELFParser::new(&elf, interp_base).unwrap();
     let base_addr = elf_parser.base();
     assert_eq!(base_addr, 0);
 
@@ -42,7 +42,7 @@ fn test_ustack(elf_parser: &ELFParser) {
     // let phent = auxv.get(&AT_PHENT).unwrap();
     // assert_eq!(*phent, 56);
     auxv.iter().for_each(|entry| {
-        if entry.get_type() == elf_parser_rs::AuxvType::PHENT {
+        if entry.get_type() == kernel_elf_parser::AuxvType::PHENT {
             assert_eq!(entry.value(), 56);
         }
     });
@@ -55,8 +55,13 @@ fn test_ustack(elf_parser: &ELFParser) {
     let ustack_size = 0x2_0000;
     let ustack_bottom = ustack_end - ustack_size;
 
-    let stack_data =
-        elf_parser_rs::app_stack_region(&args, &envs, &mut auxv, ustack_bottom.into(), ustack_size);
+    let stack_data = kernel_elf_parser::app_stack_region(
+        &args,
+        &envs,
+        &mut auxv,
+        ustack_bottom.into(),
+        ustack_size,
+    );
     // The first 8 bytes of the stack is the number of arguments.
     assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);
 }
