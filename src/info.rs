@@ -58,12 +58,43 @@ impl<'a> ELFParser<'a> {
     /// Create a new `ELFInfo` instance.
     /// # Arguments
     /// * `elf` - The ELF file data
-    /// * `base` - Address of the interpreter if the ELF file is a dynamic executable
-    pub fn new(elf: &'a xmas_elf::ElfFile, interp_base: usize) -> Result<Self, &'static str> {
+    /// * `interp_base` - Address of the interpreter if the ELF file is a dynamic executable
+    /// * `bias` - Bias for the base address of the PIE executable.
+    /// * `uspace_base` - The lowest address of the user space
+    ///
+    /// # Note
+    /// If the ELF file is a dynamic executable, the `interp_base` should be the address of the interpreter, and the address of the ELF file will be `elf.base_addr() + bias`.
+    pub fn new(
+        elf: &'a xmas_elf::ElfFile,
+        interp_base: usize,
+        bias: Option<isize>,
+        uspace_base: usize,
+    ) -> Result<Self, &'static str> {
         if elf.header.pt1.magic.as_slice() != b"\x7fELF" {
             return Err("invalid elf!");
         }
-        let base = Self::elf_base_addr(elf, interp_base)?;
+
+        // Check if the ELF file is a Position Independent Executable (PIE)
+        let is_pie = elf.header.pt2.type_().as_type() == xmas_elf::header::Type::SharedObject
+            || (elf.header.pt2.type_().as_type() == xmas_elf::header::Type::Executable
+                && elf
+                    .program_iter()
+                    .any(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Interp)));
+
+        // If it is not PIE, and the lowest address is less than user space base, it is invalid.
+        if !is_pie
+            && elf.program_iter().any(|ph| {
+                ph.get_type() == Ok(xmas_elf::program::Type::Load)
+                    && ph.virtual_addr() < uspace_base as u64
+            })
+        {
+            return Err("Invalid ELF base address");
+        }
+
+        let mut base = Self::elf_base_addr(elf, interp_base)?;
+        if is_pie {
+            base = base.wrapping_add(bias.unwrap_or(0) as usize);
+        }
         Ok(Self { elf, base })
     }
 
