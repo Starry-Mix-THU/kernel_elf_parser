@@ -4,7 +4,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use memory_addr::{PAGE_SIZE_4K, VirtAddr};
+use memory_addr::VirtAddr;
 use page_table_entry::MappingFlags;
 
 use crate::auxv::{AuxvEntry, AuxvType};
@@ -92,6 +92,11 @@ impl<'a> ELFParser<'a> {
         self.base
     }
 
+    /// The ref of the ELF file data.
+    pub fn elf(&self) -> &xmas_elf::ElfFile {
+        self.elf
+    }
+
     /// Part of auxiliary vectors from the ELF file.
     ///
     /// # Arguments
@@ -149,7 +154,6 @@ impl<'a> ELFParser<'a> {
                     flags,
                 });
             });
-
         segments
     }
 }
