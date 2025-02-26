@@ -142,9 +142,8 @@ impl<'a> ELFParser<'a> {
     /// * `pagesz` - The page size of the system
     ///
     /// Details about auxiliary vectors are described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-    pub fn auxv_vector(&self, pagesz: usize) -> [AuxvEntry; 17] {
+    pub fn auxv_vector(&self, pagesz: usize) -> [AuxvEntry; 16] {
         [
-            AuxvEntry::new(AuxvType::NULL, 0),
             AuxvEntry::new(AuxvType::PHDR, self.phdr()),
             AuxvEntry::new(AuxvType::PHENT, self.phent()),
             AuxvEntry::new(AuxvType::PHNUM, self.phnum()),
