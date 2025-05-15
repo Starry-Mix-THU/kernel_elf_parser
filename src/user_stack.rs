@@ -85,7 +85,20 @@ fn init_stack(args: &[String], envs: &[String], auxv: &mut [AuxvEntry], sp: usiz
     stack.push(padding_null.as_bytes(), &mut data);
 
     stack.push("\0".repeat(stack.get_sp() % 16).as_bytes(), &mut data);
-    assert!(stack.get_sp() % 16 == 0);
+
+    // Align stack to 16 bytes by padding if needed.
+    // We will push following 8-byte items into stack:
+    // - auxv (each entry is 2 * usize, so item count = auxv.len() * 2)
+    // - envp (len + 1 for NULL terminator)
+    // - argv (len + 1 for NULL terminator)
+    // - argc (1 item)
+    // Total items = auxv.len() * 2 + (envs.len() + 1) + (args.len() + 1) + 1
+    //             = auxv.len() * 2 + envs.len() + args.len() + 3
+    // If odd, the stack top will not be aligned to 16 bytes unless we add 8-byte padding
+    if (envs.len() + args.len() + 3) & 1 != 0 {
+        stack.push(padding_null.as_bytes(), &mut data);
+    }
+
     // Push auxiliary vectors
     for auxv_entry in auxv.iter_mut() {
         if auxv_entry.get_type() == AuxvType::RANDOM {
@@ -112,6 +125,7 @@ fn init_stack(args: &[String], envs: &[String], auxv: &mut [AuxvEntry], sp: usiz
     stack.push_usize_slice(argv_slice.as_slice(), &mut data);
     // Push argc
     stack.push_usize_slice(&[args.len()], &mut data);
+    assert!(stack.get_sp() % 16 == 0);
     data
 }
 
