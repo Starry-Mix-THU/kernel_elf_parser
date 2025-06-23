@@ -2,12 +2,11 @@
 //!
 
 extern crate alloc;
-use alloc::vec::Vec;
 
 use memory_addr::VirtAddr;
 use page_table_entry::MappingFlags;
 
-use crate::auxv::{AuxvEntry, AuxvType};
+use crate::auxv::{AuxEntry, AuxType};
 
 /// ELF Program Header applied to the kernel
 ///
@@ -33,73 +32,25 @@ pub struct ELFParser<'a> {
 }
 
 impl<'a> ELFParser<'a> {
-    fn elf_base_addr(elf: &xmas_elf::ElfFile, interp_base: usize) -> Result<usize, &'static str> {
-        match elf.header.pt2.type_().as_type() {
-            // static
-            xmas_elf::header::Type::Executable => Ok(0),
-            // dynamic
-            xmas_elf::header::Type::SharedObject => {
-                match elf
-                    .program_iter()
-                    .filter(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Interp))
-                    .count()
-                {
-                    // Interpreter invoked by the ELF file.
-                    0 => Ok(interp_base),
-                    // Dynamic ELF file
-                    1 => Ok(0),
-                    _ => Err("Multiple interpreters found"),
-                }
-            }
-            _ => Err("Unsupported ELF type"),
-        }
-    }
-
     /// Create a new `ELFInfo` instance.
     /// # Arguments
     /// * `elf` - The ELF file data
-    /// * `interp_base` - Address of the interpreter if the ELF file is a dynamic executable
     /// * `bias` - Bias for the base address of the PIE executable.
-    /// * `uspace_base` - The lowest address of the user space
-    ///
-    /// # Note
-    /// If the ELF file is a dynamic executable, the `interp_base` should be the address of the interpreter, and the address of the ELF file will be `elf.base_addr() + bias`.
-    pub fn new(
-        elf: &'a xmas_elf::ElfFile,
-        interp_base: usize,
-        bias: Option<isize>,
-        uspace_base: usize,
-    ) -> Result<Self, &'static str> {
+    pub fn new(elf: &'a xmas_elf::ElfFile, bias: usize) -> Result<Self, &'static str> {
         if elf.header.pt1.magic.as_slice() != b"\x7fELF" {
             return Err("invalid elf!");
         }
-
-        // Check if the ELF file is a Position Independent Executable (PIE)
-        let is_pie = elf.header.pt2.type_().as_type() == xmas_elf::header::Type::SharedObject
-            || (elf.header.pt2.type_().as_type() == xmas_elf::header::Type::Executable
-                && elf
-                    .program_iter()
-                    .any(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Interp)));
-
-        // If it is not PIE, and the lowest address is less than user space base, it is invalid.
-        if !is_pie
-            && elf.program_iter().any(|ph| {
-                ph.get_type() == Ok(xmas_elf::program::Type::Load)
-                    && ph.virtual_addr() < uspace_base as u64
-            })
-        {
-            return Err("Invalid ELF base address");
-        }
-
-        let mut base = Self::elf_base_addr(elf, interp_base)?;
-        if is_pie {
-            base = base.wrapping_add(bias.unwrap_or(0) as usize);
-        }
+        let base = if elf.header.pt2.type_().as_type() == xmas_elf::header::Type::SharedObject {
+            bias
+        } else {
+            0
+        };
         Ok(Self { elf, base })
     }
 
     /// The entry point of the ELF file.
     pub fn entry(&self) -> usize {
+        // TODO: base_load_address_offset?
         self.elf.header.pt2.entry_point() as usize + self.base
     }
 
@@ -115,14 +66,16 @@ impl<'a> ELFParser<'a> {
 
     /// The offset of the program header table in the ELF file.
     pub fn phdr(&self) -> usize {
-        self.elf.header.pt2.ph_offset() as usize
-            + self.base
-            + self
-                .elf
-                .program_iter()
-                .find(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Load))
-                .map(|ph| ph.virtual_addr() as usize)
-                .unwrap_or(0)
+        let ph_offset = self.elf.header.pt2.ph_offset() as usize;
+        let header = self
+            .elf
+            .program_iter()
+            .find(|header| {
+                (header.offset()..header.offset() + header.file_size())
+                    .contains(&(ph_offset as u64))
+            })
+            .expect("can not find program header table address in elf");
+        ph_offset - header.offset() as usize + header.virtual_addr() as usize + self.base
     }
 
     /// The base address of the ELF file loaded into the memory.
@@ -140,38 +93,33 @@ impl<'a> ELFParser<'a> {
     /// # Arguments
     ///
     /// * `pagesz` - The page size of the system
+    /// * `ldso_base` - The base address of the dynamic linker (if exists)
     ///
     /// Details about auxiliary vectors are described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-    pub fn auxv_vector(&self, pagesz: usize) -> [AuxvEntry; 17] {
+    pub fn aux_vector(
+        &self,
+        pagesz: usize,
+        ldso_base: Option<usize>,
+    ) -> impl Iterator<Item = AuxEntry> {
         [
-            AuxvEntry::new(AuxvType::PHDR, self.phdr()),
-            AuxvEntry::new(AuxvType::PHENT, self.phent()),
-            AuxvEntry::new(AuxvType::PHNUM, self.phnum()),
-            AuxvEntry::new(AuxvType::PAGESZ, pagesz),
-            AuxvEntry::new(AuxvType::BASE, self.base()),
-            AuxvEntry::new(AuxvType::FLAGS, 0),
-            AuxvEntry::new(AuxvType::ENTRY, self.entry()),
-            AuxvEntry::new(AuxvType::HWCAP, 0),
-            AuxvEntry::new(AuxvType::CLKTCK, 100),
-            AuxvEntry::new(AuxvType::PLATFORM, 0),
-            AuxvEntry::new(AuxvType::UID, 0),
-            AuxvEntry::new(AuxvType::EUID, 0),
-            AuxvEntry::new(AuxvType::GID, 0),
-            AuxvEntry::new(AuxvType::EGID, 0),
-            AuxvEntry::new(AuxvType::RANDOM, 0),
-            AuxvEntry::new(AuxvType::EXECFN, 0),
-            AuxvEntry::new(AuxvType::NULL, 0),
+            (AuxType::PHDR, self.phdr()),
+            (AuxType::PHENT, self.phent()),
+            (AuxType::PHNUM, self.phnum()),
+            (AuxType::PAGESZ, pagesz),
+            (AuxType::ENTRY, self.entry()),
         ]
+        .into_iter()
+        .chain(ldso_base.into_iter().map(|base| (AuxType::BASE, base)))
+        .map(|(at, val)| AuxEntry::new(at, val))
     }
 
     /// Read all [`self::ELFPH`] with `LOAD` type of the elf file.
-    pub fn ph_load(&self) -> Vec<ELFPH> {
-        let mut segments = Vec::new();
+    pub fn ph_load(&self) -> impl Iterator<Item = ELFPH> + '_ {
         // Load Elf "LOAD" segments at base_addr.
         self.elf
             .program_iter()
             .filter(|ph| ph.get_type() == Ok(xmas_elf::program::Type::Load))
-            .for_each(|ph| {
+            .map(|ph| {
                 let start_va = ph.virtual_addr() as usize + self.base;
                 let start_offset = ph.offset() as usize;
                 let mut flags = MappingFlags::USER;
@@ -184,14 +132,13 @@ impl<'a> ELFParser<'a> {
                 if ph.flags().is_execute() {
                     flags |= MappingFlags::EXECUTE;
                 }
-                segments.push(ELFPH {
+                ELFPH {
                     offset: start_offset,
                     vaddr: VirtAddr::from(start_va),
                     memsz: ph.mem_size(),
                     filesz: ph.file_size(),
                     flags,
-                });
-            });
-        segments
+                }
+            })
     }
 }

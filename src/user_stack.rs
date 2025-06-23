@@ -29,62 +29,43 @@
 
 extern crate alloc;
 
+use alloc::collections::VecDeque;
+
 use alloc::{string::String, vec::Vec};
 use memory_addr::VirtAddr;
+use zerocopy::IntoBytes;
 
-use crate::auxv::{AuxvEntry, AuxvType};
+use crate::auxv::{AuxEntry, AuxType};
 
-struct UserStack {
-    sp: usize,
-}
+fn init_stack(args: &[String], envs: &[String], auxv: &[AuxEntry], sp: usize) -> Vec<u8> {
+    let mut data = VecDeque::new();
+    let mut push = |src: &[u8]| -> usize {
+        data.extend(src.iter().cloned());
+        data.rotate_right(src.len());
+        sp - data.len()
+    };
 
-impl UserStack {
-    pub fn new(sp: usize) -> Self {
-        Self { sp }
-    }
-    fn push(&mut self, src: &[u8], stack_data: &mut Vec<u8>) {
-        self.sp -= src.len();
-        // let mut target_data = src.to_vec();
-        // target_data.append(stack_data);
-        // *stack_data = target_data;
-        stack_data.splice(0..0, src.iter().cloned());
-    }
-    pub fn push_usize_slice(&mut self, src: &[usize], stack_data: &mut Vec<u8>) {
-        for val in src.iter().rev() {
-            let bytes = val.to_le_bytes();
-            self.push(&bytes, stack_data);
-        }
-    }
-    pub fn push_str(&mut self, str: &str, stack_data: &mut Vec<u8>) -> usize {
-        self.push(b"\0", stack_data);
-
-        self.push(str.as_bytes(), stack_data);
-        self.sp
-    }
-    pub fn get_sp(&self) -> usize {
-        self.sp
-    }
-}
-
-fn init_stack(args: &[String], envs: &[String], auxv: &mut [AuxvEntry], sp: usize) -> Vec<u8> {
-    let mut data = Vec::new();
-    let mut stack = UserStack::new(sp);
     // define a random string with 16 bytes
-    stack.push("0123456789abcdef".as_bytes(), &mut data);
-    let random_str_pos = stack.get_sp();
+    let random_str_pos = push("0123456789abcdef".as_bytes());
     // Push arguments and environment variables
     let envs_slice: Vec<_> = envs
         .iter()
-        .map(|env| stack.push_str(env, &mut data))
+        .map(|env| {
+            push(b"\0");
+            push(env.as_bytes())
+        })
         .collect();
     let argv_slice: Vec<_> = args
         .iter()
-        .map(|arg| stack.push_str(arg, &mut data))
+        .map(|arg| {
+            push(b"\0");
+            push(arg.as_bytes())
+        })
         .collect();
     let padding_null = "\0".repeat(8);
-    stack.push(padding_null.as_bytes(), &mut data);
+    let sp = push(padding_null.as_bytes());
 
-    stack.push("\0".repeat(stack.get_sp() % 16).as_bytes(), &mut data);
+    push(&b"\0".repeat(sp % 16));
 
     // Align stack to 16 bytes by padding if needed.
     // We will push following 8-byte items into stack:
@@ -96,37 +77,46 @@ fn init_stack(args: &[String], envs: &[String], auxv: &mut [AuxvEntry], sp: usiz
     //             = auxv.len() * 2 + envs.len() + args.len() + 3
     // If odd, the stack top will not be aligned to 16 bytes unless we add 8-byte padding
     if (envs.len() + args.len() + 3) & 1 != 0 {
-        stack.push(padding_null.as_bytes(), &mut data);
+        push(padding_null.as_bytes());
     }
 
     // Push auxiliary vectors
-    for auxv_entry in auxv.iter_mut() {
-        if auxv_entry.get_type() == AuxvType::RANDOM {
-            *auxv_entry.value_mut_ref() = random_str_pos;
+    let mut has_random = false;
+    let mut has_execfn = false;
+    for entry in auxv.iter() {
+        if entry.get_type() == AuxType::RANDOM {
+            has_random = true;
         }
-        if auxv_entry.get_type() == AuxvType::EXECFN {
-            *auxv_entry.value_mut_ref() = argv_slice[0];
+        if entry.get_type() == AuxType::EXECFN {
+            has_execfn = true;
+        }
+        if has_random && has_execfn {
+            break;
         }
     }
-    stack.push_usize_slice(
-        unsafe {
-            core::slice::from_raw_parts(
-                auxv.as_ptr() as *const usize,
-                core::mem::size_of_val(auxv) / core::mem::size_of::<usize>(),
-            )
-        },
-        &mut data,
-    );
+    push(auxv.as_bytes());
+    if !has_random {
+        push(AuxEntry::new(AuxType::RANDOM, random_str_pos).as_bytes());
+    }
+    if !has_execfn {
+        push(AuxEntry::new(AuxType::EXECFN, argv_slice[0]).as_bytes());
+    }
 
     // Push the argv and envp pointers
-    stack.push(padding_null.as_bytes(), &mut data);
-    stack.push_usize_slice(envs_slice.as_slice(), &mut data);
-    stack.push(padding_null.as_bytes(), &mut data);
-    stack.push_usize_slice(argv_slice.as_slice(), &mut data);
+    push(padding_null.as_bytes());
+    push(envs_slice.as_bytes());
+    push(padding_null.as_bytes());
+    push(argv_slice.as_bytes());
     // Push argc
-    stack.push_usize_slice(&[args.len()], &mut data);
-    assert!(stack.get_sp() % 16 == 0);
-    data
+    let sp = push(args.len().as_bytes());
+
+    assert!(sp % 16 == 0);
+
+    let mut result = Vec::with_capacity(data.len());
+    let (first, second) = data.as_slices();
+    result.extend_from_slice(first);
+    result.extend_from_slice(second);
+    result
 }
 
 /// Generate initial stack frame for user stack
@@ -149,7 +139,7 @@ fn init_stack(args: &[String], envs: &[String], auxv: &mut [AuxvEntry], sp: usiz
 pub fn app_stack_region(
     args: &[String],
     envs: &[String],
-    auxv: &mut [AuxvEntry],
+    auxv: &[AuxEntry],
     stack_base: VirtAddr,
     stack_size: usize,
 ) -> Vec<u8> {

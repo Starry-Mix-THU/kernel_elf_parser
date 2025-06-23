@@ -20,11 +20,11 @@ fn test_elf_parser() {
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
 
     let interp_base = 0x1000;
-    let elf_parser = kernel_elf_parser::ELFParser::new(&elf, interp_base, None, 0).unwrap();
+    let elf_parser = kernel_elf_parser::ELFParser::new(&elf, interp_base).unwrap();
     let base_addr = elf_parser.base();
     assert_eq!(base_addr, 0);
 
-    let segments = elf_parser.ph_load();
+    let segments = elf_parser.ph_load().collect::<Vec<_>>();
     assert_eq!(segments.len(), 4);
     let mut last_start = VirtAddr::from_usize(0);
     for segment in segments.iter() {
@@ -38,11 +38,13 @@ fn test_elf_parser() {
 }
 
 fn test_ustack(elf_parser: &ELFParser) {
-    let mut auxv = elf_parser.auxv_vector(PAGE_SIZE_4K);
+    let mut auxv = elf_parser
+        .aux_vector(PAGE_SIZE_4K, None)
+        .collect::<Vec<_>>();
     // let phent = auxv.get(&AT_PHENT).unwrap();
     // assert_eq!(*phent, 56);
     auxv.iter().for_each(|entry| {
-        if entry.get_type() == kernel_elf_parser::AuxvType::PHENT {
+        if entry.get_type() == kernel_elf_parser::AuxType::PHENT {
             assert_eq!(entry.value(), 56);
         }
     });

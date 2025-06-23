@@ -15,11 +15,11 @@ fn test_elf_parser() {
     let elf =
         xmas_elf::ElfFile::new(aligned_elf_bytes.as_slice()).expect("Failed to read elf file");
     let interp_base = 0x1000;
-    let elf_parser = kernel_elf_parser::ELFParser::new(&elf, interp_base, None, 0).unwrap();
+    let elf_parser = kernel_elf_parser::ELFParser::new(&elf, interp_base).unwrap();
     let base_addr = elf_parser.base();
     assert_eq!(base_addr, interp_base);
 
-    let segments = elf_parser.ph_load();
+    let segments = elf_parser.ph_load().collect::<Vec<_>>();
     assert_eq!(segments.len(), 4);
     for segment in segments.iter() {
         println!("{:?} {:?}", segment.vaddr, segment.flags);

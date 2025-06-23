@@ -1,8 +1,10 @@
+use zerocopy::{Immutable, IntoBytes};
+
 /// Represents the type of an auxiliary vector entry.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, IntoBytes, Immutable)]
 #[allow(non_camel_case_types, unused)]
 #[repr(usize)]
-pub enum AuxvType {
+pub enum AuxType {
     /// End of vector
     NULL = 0,
     /// Entry should be ignored
@@ -92,18 +94,18 @@ pub enum AuxvType {
 }
 
 /// Represents an entry in the auxiliary vector.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, IntoBytes, Immutable)]
 #[repr(C)]
-pub struct AuxvEntry {
+pub struct AuxEntry {
     /// The type of the auxiliary vector entry.
-    auxv_type: AuxvType,
+    auxv_type: AuxType,
     /// The value associated with the auxiliary vector entry.
     auxv_val: usize,
 }
 
-impl AuxvEntry {
+impl AuxEntry {
     /// Create a new auxv entry
-    pub fn new(auxv_type: AuxvType, auxv_val: usize) -> Self {
+    pub fn new(auxv_type: AuxType, auxv_val: usize) -> Self {
         Self {
             auxv_type,
             auxv_val,
@@ -111,7 +113,7 @@ impl AuxvEntry {
     }
 
     /// Get [self::AuxvType] of the auxv entry
-    pub fn get_type(&self) -> AuxvType {
+    pub fn get_type(&self) -> AuxType {
         self.auxv_type
     }
 
