@@ -27,17 +27,30 @@
 //!
 //! More details can be found in the link: <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
 
-extern crate alloc;
+use alloc::{collections::VecDeque, string::String, vec::Vec};
 
-use alloc::collections::VecDeque;
-
-use alloc::{string::String, vec::Vec};
 use memory_addr::VirtAddr;
 use zerocopy::IntoBytes;
 
 use crate::auxv::{AuxEntry, AuxType};
 
-fn init_stack(args: &[String], envs: &[String], auxv: &[AuxEntry], sp: usize) -> Vec<u8> {
+/// Generate initial stack frame for user stack
+///
+/// # Arguments
+///
+/// * `args` - Arguments of the application
+/// * `envs` - Environment variables of the application
+/// * `auxv` - Auxiliary vectors of the application
+/// * `sp`   - Highest address of the stack
+///
+/// # Return
+///
+/// * [`Vec<u8>`] - Initial stack frame of the application
+///
+/// # Notes
+///
+/// The detailed format is described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
+pub fn app_stack_region(args: &[String], envs: &[String], auxv: &[AuxEntry], sp: usize) -> Vec<u8> {
     let mut data = VecDeque::new();
     let mut push = |src: &[u8]| -> usize {
         data.extend(src.iter().cloned());
@@ -75,7 +88,8 @@ fn init_stack(args: &[String], envs: &[String], auxv: &[AuxEntry], sp: usize) ->
     // - argc (1 item)
     // Total items = auxv.len() * 2 + (envs.len() + 1) + (args.len() + 1) + 1
     //             = auxv.len() * 2 + envs.len() + args.len() + 3
-    // If odd, the stack top will not be aligned to 16 bytes unless we add 8-byte padding
+    // If odd, the stack top will not be aligned to 16 bytes unless we add 8-byte
+    // padding
     if (envs.len() + args.len() + 3) & 1 != 0 {
         push(padding_null.as_bytes());
     }
@@ -117,33 +131,4 @@ fn init_stack(args: &[String], envs: &[String], auxv: &[AuxEntry], sp: usize) ->
     result.extend_from_slice(first);
     result.extend_from_slice(second);
     result
-}
-
-/// Generate initial stack frame for user stack
-///
-/// # Arguments
-///
-/// * `args` - Arguments of the application
-/// * `envs` - Environment variables of the application
-/// * `auxv` - Auxiliary vectors of the application
-/// * `stack_base` - Lowest address of the stack
-/// * `stack_size` - Size of the stack.
-///
-/// # Return
-///
-/// * [`Vec<u8>`] - Initial stack frame of the application
-///
-/// # Notes
-///
-/// The detailed format is described in <https://articles.manugarg.com/aboutelfauxiliaryvectors.html>
-pub fn app_stack_region(
-    args: &[String],
-    envs: &[String],
-    auxv: &[AuxEntry],
-    stack_base: VirtAddr,
-    stack_size: usize,
-) -> Vec<u8> {
-    let ustack_bottom = stack_base;
-    let ustack_top = ustack_bottom + stack_size;
-    init_stack(args, envs, auxv, ustack_top.into())
 }

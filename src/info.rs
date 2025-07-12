@@ -1,7 +1,4 @@
 //! ELF information parsed from the ELF file
-//!
-
-extern crate alloc;
 
 use memory_addr::VirtAddr;
 use page_table_entry::MappingFlags;
@@ -20,7 +17,8 @@ pub struct ELFPH {
     pub memsz: u64,
     /// File size of the segment
     pub filesz: u64,
-    /// [`MappingFlags`] of the segment which is used to set the page table entry
+    /// [`MappingFlags`] of the segment which is used to set the page table
+    /// entry
     pub flags: MappingFlags,
 }
 
