@@ -1,9 +1,7 @@
 use kernel_elf_parser::ELFParser;
-use memory_addr::PAGE_SIZE_4K;
 
 #[test]
 fn test_elf_parser() {
-    use memory_addr::VirtAddr;
     // A simple elf file compiled by the x86_64-linux-musl-gcc.
     let elf_bytes = include_bytes!("elf_static");
     // Ensure the alignment of the byte array
@@ -26,21 +24,19 @@ fn test_elf_parser() {
 
     let segments = elf_parser.ph_load().collect::<Vec<_>>();
     assert_eq!(segments.len(), 4);
-    let mut last_start = VirtAddr::from_usize(0);
+    let mut last_start = 0;
     for segment in segments.iter() {
         // start vaddr should be sorted
         assert!(segment.vaddr > last_start);
         last_start = segment.vaddr;
     }
-    assert_eq!(segments[0].vaddr, VirtAddr::from_usize(0x400000));
+    assert_eq!(segments[0].vaddr, 0x400000);
 
     test_ustack(&elf_parser);
 }
 
 fn test_ustack(elf_parser: &ELFParser) {
-    let mut auxv = elf_parser
-        .aux_vector(PAGE_SIZE_4K, None)
-        .collect::<Vec<_>>();
+    let auxv = elf_parser.aux_vector(0x1000, None).collect::<Vec<_>>();
     // let phent = auxv.get(&AT_PHENT).unwrap();
     // assert_eq!(*phent, 56);
     auxv.iter().for_each(|entry| {
@@ -54,16 +50,8 @@ fn test_ustack(elf_parser: &ELFParser) {
 
     // The highest address of the user stack.
     let ustack_end = 0x4000_0000;
-    let ustack_size = 0x2_0000;
-    let ustack_bottom = ustack_end - ustack_size;
 
-    let stack_data = kernel_elf_parser::app_stack_region(
-        &args,
-        &envs,
-        &mut auxv,
-        ustack_bottom.into(),
-        ustack_size,
-    );
+    let stack_data = kernel_elf_parser::app_stack_region(&args, &envs, &auxv, ustack_end);
     // The first 8 bytes of the stack is the number of arguments.
     assert_eq!(stack_data[0..8], [3, 0, 0, 0, 0, 0, 0, 0]);
 }

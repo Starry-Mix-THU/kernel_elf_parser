@@ -1,7 +1,6 @@
 //! ELF information parsed from the ELF file
 
-use memory_addr::VirtAddr;
-use page_table_entry::MappingFlags;
+use xmas_elf::program::Flags;
 
 use crate::auxv::{AuxEntry, AuxType};
 
@@ -12,14 +11,14 @@ pub struct ELFPH {
     /// The start offset of the segment in the ELF file
     pub offset: usize,
     /// The destination virtual address of the segment in the kernel memory
-    pub vaddr: VirtAddr,
+    pub vaddr: usize,
     /// Memory size of the segment
     pub memsz: u64,
     /// File size of the segment
     pub filesz: u64,
     /// [`MappingFlags`] of the segment which is used to set the page table
     /// entry
-    pub flags: MappingFlags,
+    pub flags: Flags,
 }
 
 /// A wrapper for the ELF file data with some useful methods.
@@ -120,22 +119,12 @@ impl<'a> ELFParser<'a> {
             .map(|ph| {
                 let start_va = ph.virtual_addr() as usize + self.base;
                 let start_offset = ph.offset() as usize;
-                let mut flags = MappingFlags::USER;
-                if ph.flags().is_read() {
-                    flags |= MappingFlags::READ;
-                }
-                if ph.flags().is_write() {
-                    flags |= MappingFlags::WRITE;
-                }
-                if ph.flags().is_execute() {
-                    flags |= MappingFlags::EXECUTE;
-                }
                 ELFPH {
                     offset: start_offset,
-                    vaddr: VirtAddr::from(start_va),
+                    vaddr: start_va,
                     memsz: ph.mem_size(),
                     filesz: ph.file_size(),
-                    flags,
+                    flags: ph.flags(),
                 }
             })
     }

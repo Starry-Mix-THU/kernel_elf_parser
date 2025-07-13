@@ -12,7 +12,5 @@ keywords = ["Starry", "ELF", "kernel"]
 categories = ["no-std"]
 
 [dependencies]
-memory_addr = "0.4"
-page_table_entry = "0.5.3"
 xmas-elf = "0.9"
 zerocopy = { version = "0.8.26", features = ["derive"] }

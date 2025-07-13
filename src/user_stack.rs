@@ -29,7 +29,6 @@
 
 use alloc::{collections::VecDeque, string::String, vec::Vec};
 
-use memory_addr::VirtAddr;
 use zerocopy::IntoBytes;
 
 use crate::auxv::{AuxEntry, AuxType};

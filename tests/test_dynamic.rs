@@ -1,6 +1,5 @@
 #[test]
 fn test_elf_parser() {
-    use memory_addr::VirtAddr;
     let elf_bytes = include_bytes!("ld-linux-x86-64.so.2");
     // Ensure the alignment of the byte array
     let mut aligned_elf_bytes = unsafe {
@@ -24,5 +23,5 @@ fn test_elf_parser() {
     for segment in segments.iter() {
         println!("{:?} {:?}", segment.vaddr, segment.flags);
     }
-    assert_eq!(segments[0].vaddr, VirtAddr::from_usize(0x1000));
+    assert_eq!(segments[0].vaddr, 0x1000);
 }
